@@ -1,0 +1,61 @@
+# YAML doc:  https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema
+
+resources:
+- repo: self
+# Triggers:  https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema#triggers
+trigger: none
+
+# Stages:  https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema#stage
+stages:
+- stage:  rev_engineer
+  displayName:  Reverse Engineer Database
+  variables:  []
+  jobs:
+  - job:  delta_kusto
+    pool:
+      vmImage: 'windows-latest' # 'windows-latest' or 'ubuntu-latest' or 'macOS-latest'
+    variables:  []
+    steps:
+    # PowerShell script:  https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema#pwsh
+    - pwsh:  |
+        # Fails if one of the command fails in the script
+        $ErrorActionPreference="Stop"
+        $clientVersion=(iwr https://delta-kusto.azurefd.net/clientVersion/unique?fromClientVersion=0).Content
+        # Display the version on console
+        echo "Client Version:  $clientVersion"
+        if ($IsLinux) { $os = "linux" }
+        elseif ($IsMacOS) { $os = "mac" }
+        elseif ($IsWindows) { $os = "windows" }        
+        iwr https://github.com/microsoft/delta-kusto/releases/download/$clientVersion/delta-kusto-$os.tar.gz -OutFile delta-kusto-$os.tar.gz
+        # On Windows, tar is only available starting with Windows 10 / Server 2019
+        if (!$IsWindows -or [Environment]::OSVersion.Version.Build -ge 17063) {
+          tar --extract --file delta-kusto-$os.tar.gz
+        } else {
+          # For older versions of Windows, use 7Zip4PowerShell
+          if (-not (Get-Command Expand-7Zip -ErrorAction Ignore)) {
+              Install-Package -Scope CurrentUser -Force 7Zip4PowerShell -ProviderName PowerShellGet > $null
+          }
+          Expand-7Zip delta-kusto-$os.tar.gz .
+          Expand-7Zip delta-kusto-$os.tar .
+        }
+        if (!$IsWindows) { chmod +x ./delta-kusto }
+      displayName:  Install Delta-Kusto
+    - pwsh:  |
+        # Fails if one of the command fails in the script
+        $ErrorActionPreference="Stop"
+        mkdir documentation/tutorials/az-dev-ops/reverse-engineer/kql-scripts
+        mkdir documentation/tutorials/az-dev-ops/reverse-engineer/kql-scripts/complete
+      displayName:  Prep script folder
+    - pwsh:  |
+        # Fails if one of the command fails in the script
+        $ErrorActionPreference="Stop"
+        $clusterUri=${env:CLUSTER_URI}
+        echo "Cluster URI:  $clusterUri"
+        # Package the login in a JSON payload
+        $login="{\""tenantId\"":\""${env:TENANT_ID}\"",\""clientId\"":\""${env:CLIENT_ID}\"",\""secret\"":\""${env:SECRET}\""}"
+        ./delta-kusto -p documentation/tutorials/az-dev-ops/reverse-engineer/rev-engineer-parameters.yaml -o jobs.download-dev.target.adx.clusterUri=$clusterUri jobs.delta-dev.target.adx.clusterUri=$clusterUri tokenProvider.login=$login
+      displayName:  Run Delta-Kusto
+    # Publish artefact:  https://docs.microsoft.com/en-us/azure/devops/pipelines/artifacts/pipeline-artifacts#publish-artifacts
+    - publish: documentation/tutorials/az-dev-ops/reverse-engineer/kql-scripts
+      artifact:  kql-scripts
+      displayName: 'Publish Artifact: kql-scripts'
