@@ -27,16 +27,14 @@ stages:
         elseif ($IsMacOS) { $os = "mac" }
         elseif ($IsWindows) { $os = "windows" }        
         iwr https://github.com/microsoft/delta-kusto/releases/download/$clientVersion/delta-kusto-$os.tar.gz -OutFile delta-kusto-$os.tar.gz
-        # On Windows, tar is only available starting with Windows 10 / Server 2019
+        # On Windows, bsdtar is included starting with Windows 10 / Server 2019 build 17063
         if (!$IsWindows -or [Environment]::OSVersion.Version.Build -ge 17063) {
           tar --extract --file delta-kusto-$os.tar.gz
         } else {
-          # For older versions of Windows, use 7Zip4PowerShell
-          if (-not (Get-Command Expand-7Zip -ErrorAction Ignore)) {
-              Install-Package -Scope CurrentUser -Force 7Zip4PowerShell -ProviderName PowerShellGet > $null
-          }
-          Expand-7Zip delta-kusto-$os.tar.gz .
-          Expand-7Zip delta-kusto-$os.tar .
+          # For older versions of Windows, download bsdtar since it's not included
+          iwr http://libarchive.org/downloads/libarchive-v3.5.2-win64.zip -OutFile libarchive.zip
+          Expand-Archive -Path libarchive.zip -DestinationPath .
+          ./libarchive/bin/bsdtar --extract --file delta-kusto-$os.tar.gz
         }
         if (!$IsWindows) { chmod +x ./delta-kusto }
       displayName:  Install Delta-Kusto
