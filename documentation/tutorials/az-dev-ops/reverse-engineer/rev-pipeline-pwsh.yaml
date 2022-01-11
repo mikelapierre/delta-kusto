@@ -20,21 +20,27 @@ stages:
     - pwsh:  |
         # Fails if one of the command fails in the script
         $ErrorActionPreference="Stop"
-        $clientVersion=(iwr https://delta-kusto.azurefd.net/clientVersion/unique?fromClientVersion=0).Content
+        # For older versions of PowerShell
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $clientVersion=(iwr -Verbose https://delta-kusto.azurefd.net/clientVersion/unique?fromClientVersion=0).Content
         # Display the version on console
         echo "Client Version:  $clientVersion"
+        # For older versions of PowerShell
+        if ($IsWindows -eq $null) { $IsWindows = $true; }
         if ($IsLinux) { $os = "linux" }
         elseif ($IsMacOS) { $os = "mac" }
-        elseif ($IsWindows) { $os = "windows" }        
+        elseif ($IsWindows) { $os = "windows" }
         iwr https://github.com/microsoft/delta-kusto/releases/download/$clientVersion/delta-kusto-$os.tar.gz -OutFile delta-kusto-$os.tar.gz
-        # On Windows, bsdtar is included starting with Windows 10 / Server 2019 build 17063
+        # On Windows, tar is included starting with Windows 10 / Server 2019 build 17063
         if (!$IsWindows -or [Environment]::OSVersion.Version.Build -ge 17063) {
           tar --extract --file delta-kusto-$os.tar.gz
         } else {
-          # For older versions of Windows, download bsdtar since it's not included
-          iwr http://libarchive.org/downloads/libarchive-v3.5.2-win64.zip -OutFile libarchive.zip
-          Expand-Archive -Path libarchive.zip -DestinationPath .
-          ./libarchive/bin/bsdtar --extract --file delta-kusto-$os.tar.gz
+          # For older versions of Windows, download 7zip since tar not included
+          iwr https://www.7-zip.org/a/7za920.zip -OutFile 7z.zip
+          Add-Type -Assembly "System.IO.Compression.Filesystem"
+          [System.IO.Compression.ZipFile]::ExtractToDirectory('7z.zip','7z')
+          ./7z/7za.exe x delta-kusto-$os.tar.gz
+          ./7z/7za.exe x delta-kusto-$os.tar         
         }
         if (!$IsWindows) { chmod +x ./delta-kusto }
       displayName:  Install Delta-Kusto
