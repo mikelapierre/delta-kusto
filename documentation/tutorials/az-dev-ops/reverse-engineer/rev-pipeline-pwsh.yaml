@@ -26,9 +26,9 @@ stages:
         # Display the version on console
         echo "Client Version:  $clientVersion"
         # For older versions of PowerShell
-        if ($IsWindows -eq $null) { $IsWindows = $true; }
-        if ($IsLinux) { $os = "linux" }
-        elseif ($IsMacOS) { $os = "mac" }
+        if ($IsWindows -eq $null) { $IsWindows = $true }
+        if ($IsLinux) { $os = "linux" } `
+        elseif ($IsMacOS) { $os = "mac" } `
         elseif ($IsWindows) { $os = "windows" }
         iwr https://github.com/microsoft/delta-kusto/releases/download/$clientVersion/delta-kusto-$os.tar.gz -OutFile delta-kusto-$os.tar.gz
         # On Windows, tar is included starting with Windows 10 / Server 2019 build 17063
@@ -38,11 +38,16 @@ stages:
           # For older versions of Windows, download 7zip since tar not included
           iwr https://www.7-zip.org/a/7za920.zip -OutFile 7z.zip
           Add-Type -Assembly "System.IO.Compression.Filesystem"
+          if (Test-Path -Path 7z) { rm -Recurse -Force 7z }
           [System.IO.Compression.ZipFile]::ExtractToDirectory('7z.zip','7z')
-          ./7z/7za.exe x delta-kusto-$os.tar.gz
-          ./7z/7za.exe x delta-kusto-$os.tar         
-        }
+          ./7z/7za.exe x -y delta-kusto-$os.tar.gz          
+          ./7z/7za.exe x -y delta-kusto-$os.tar                    
+          rm 7z.zip
+          rm -Recurse -Force 7z
+          rm delta-kusto-$os.tar                    
+        }                
         if (!$IsWindows) { chmod +x ./delta-kusto }
+        rm delta-kusto-$os.tar.gz
       displayName:  Install Delta-Kusto
     - pwsh:  |
         # Fails if one of the command fails in the script
