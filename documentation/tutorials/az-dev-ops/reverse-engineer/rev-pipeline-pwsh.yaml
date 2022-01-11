@@ -22,7 +22,7 @@ stages:
         $ErrorActionPreference="Stop"
         # For older versions of PowerShell
         [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-        $clientVersion=(iwr -Verbose https://delta-kusto.azurefd.net/clientVersion/unique?fromClientVersion=0).Content
+        $clientVersion=(iwr https://delta-kusto.azurefd.net/clientVersion/unique?fromClientVersion=0).Content
         # Display the version on console
         echo "Client Version:  $clientVersion"
         # For older versions of PowerShell
